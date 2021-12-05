@@ -132,7 +132,7 @@ class Agent_DQN(Agent):
                 # observation = np.rollaxis(observation, 2)
                 # observation = torch.from_numpy(observation).cuda()
                 observation = torch.from_numpy(observation).cuda()
-                observation = torch.unsqueeze(observation,0).to(self.device)
+                observation = observation.view(-1,self.img_w*self.img_h).to(self.device)
                 action = self.policy_net(observation.float()).max(1)[1].view(1, 1)
         else:  #train
             #self.eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * math.exp(-1. * self.steps_done / self.EPS_DECAY)
@@ -142,23 +142,19 @@ class Agent_DQN(Agent):
             sample = random.random()
             self.steps_done += 1
             if sample > self.eps_threshold:
-                #print("from policy")
                 with torch.no_grad():
                     #observation = np.rollaxis(observation, 2)
                     observation = torch.from_numpy(observation).cuda()
-                    observation = torch.unsqueeze(observation,0).to(self.device)
+                    observation = observation.view(-1,self.img_w*self.img_h).to(self.device)
                     action = self.policy_net(observation.float()).max(1)[1].view(1, 1)
             else:
-                #print("from random")
                 action = torch.tensor([[random.randrange(2)]], device=self.device, dtype=torch.long)
         action_cpu = action.cpu().data.numpy()[0][0]
-        ###########################
         return action_cpu
 
     def make_random_action(self):
         action = torch.tensor([[random.randrange(2)]], device=self.device, dtype=torch.long)
         action_cpu = action.cpu().data.numpy()[0][0]
-        ###########################
         return action_cpu
     
     def push(self,
@@ -167,14 +163,8 @@ class Agent_DQN(Agent):
         action: float,
         reward: float,
         done: bool):
-        """ You can add additional arguments as you need. 
-        Push new data to buffer and remove the old one if the buffer is full.
-        Hints:
-        -----
-            you can consider deque(maxlen = 10000) list
+        """ can consider deque(maxlen = 10000) list
         """
-        ###########################
-        # YOUR IMPLEMENTATION HERE #
         temp_state = state          #np.rollaxis(state,2)
         temp_next_state = next_state#np.rollaxis(next_state,2)
         self.state_buffer[self.buffer_ptr] = temp_state
@@ -184,16 +174,11 @@ class Agent_DQN(Agent):
         self.done_buffer[self.buffer_ptr] = done
         self.buffer_ptr = (self.buffer_ptr + 1) % self.buffer_max_size
         self.buffer_size = min(self.buffer_size + 1, self.buffer_max_size)
-        ###########################
     def replay_buffer(self):
         """ You can add additional arguments as you need.
         Select batch from buffer.
         """
-        ###########################
-        # YOUR IMPLEMENTATION HERE #
         indexes = np.random.choice(self.buffer_size, size=self.batch_size, replace=False)
-        #print("indexes:",indexes)
-        ###########################
         return dict(state=self.state_buffer[indexes],
                     next_state=self.next_state_buffer[indexes],
                     action=self.action_buffer[indexes],
@@ -206,8 +191,8 @@ class Agent_DQN(Agent):
         device = self.device  
         # state = torch.FloatTensor([np.rollaxis(s,2) for s in batch_samples["state"]]).to(device)
         # next_state = torch.FloatTensor([np.rollaxis(s,2) for s in batch_samples["next_state"]]).to(device)
-        state = torch.FloatTensor(batch_samples["state"].reshape(-1,30)).to(device)
-        next_state = torch.FloatTensor(batch_samples["next_state"].reshape(-1,30)).to(device)
+        state = torch.FloatTensor(batch_samples["state"].reshape(-1,self.img_w*self.img_h)).to(device)
+        next_state = torch.FloatTensor(batch_samples["next_state"].reshape(-1,self.img_w*self.img_h)).to(device)
         reward = torch.FloatTensor(batch_samples["reward"].reshape(-1, 1)).to(device)
         done = torch.FloatTensor(batch_samples["done"].reshape(-1, 1)).to(device)
         action = torch.LongTensor(batch_samples["action"]).to(device)
@@ -251,7 +236,7 @@ class Agent_DQN(Agent):
             import matplotlib
             matplotlib.use('TkAgg')
             import matplotlib.pyplot as plt
-        stepPermin = 10000
+        stepPermin = 50000
         fig=plt.figure()
         ax=fig.add_subplot(1,1,1)
         ax.set_xlabel('Number of training steps')
@@ -271,9 +256,7 @@ class Agent_DQN(Agent):
         for episode in range(self.max_episodes):
             episode_reward = 0.0
             done = False
-            print(episode)
             observation,target_position = self.env.reset()
-            print(episode)
             while not done:
                 if start_update_flag:
                     action = self.make_action(observation,test=False)
@@ -293,9 +276,6 @@ class Agent_DQN(Agent):
                     start_update_flag = True
                     print("start training...")
                 if start_update_flag:
-                    # print("episode:",episode)
-                    # print(start_update_flag)
-                    print("update_step:",update_step)
                     if(update_step%(self.training_frequency)==0):
                         batch = self.replay_buffer()
                         loss = self.compute_dqn_loss(batch)
@@ -358,7 +338,171 @@ class Agent_DQN(Agent):
         
     def test_policy(self):
         print("Testing current policy...")
-        rewards = []
+        rewards = []class CellEnv:
+    grid_SIZE = 10.0
+    Nb_agent = 10
+    RETURN_IMAGES = False
+    IMPROVE_REWARD = 1
+    GOAL_REWARD = 30
+    velocity = 0.1
+    # ENEMY_PENALTY = 300 
+    # FOOD_REWARD = 25
+    # OBSERVATION_SPACE_VALUES = (SIZE, SIZE, 3)  # 4
+    #ACTION_SPACE_SIZE = 9
+    
+    # the dict! (colors)
+    d = {1: (255, 175, 0),
+         2: (0, 255, 0),
+         3: (0, 0, 255)}
+    
+    def reset(self):
+        self.reach_goal_flag = np.zeros((1, self.Nb_agent), dtype=bool)
+        self.reach_goal_count = 0
+        self.goal = goal(self.grid_SIZE)
+        self.agents = []
+        for i in range(self.Nb_agent):
+            self.agents.append(agent(self.grid_SIZE,self.velocity))
+            error = [self.goal.x-self.agents[i].x, self.goal.y-self.agents[i].y]
+            while  np.linalg.norm(error, ord=2) < 0.1:
+                self.agents[i] = agent(self.grid_SIZE,self.velocity)
+                error = [self.goal.x-self.agents[i].x, self.goal.y-self.agents[i].y]
+        self.episode_step = 0
+        # if self.RETURN_IMAGES:
+        #     #observation = np.array(self.get_image())
+        # else:
+        observation = []
+        error = []
+        self.target_state = [self.goal.x,self.goal.y,np.array([0.0])]
+        for agent_i in self.agents:
+            theta_reference_i = np.arctan2(self.goal.y-agent_i.y, self.goal.x-agent_i.x)
+            error_i = [self.goal.x-agent_i.x, self.goal.y-agent_i.y, theta_reference_i - agent_i.theta]
+            observation_i = [agent_i.x, agent_i.y, agent_i.theta]
+            observation.append(observation_i) 
+            error.append(error_i)
+        observation.append(self.target_state)
+        print(observation)
+        observation = np.concatenate(observation,axis=1)
+        observation = observation.reshape(1,3,-1)
+        error = np.concatenate(error,axis=1)
+        error = error.reshape(1,3,-1)
+        print(type(observation))
+        print(observation.shape)
+        self.last_observation = observation
+        self.last_error = error
+        return observation,self.goal
+    
+    def step(self, action):
+        self.reach_goal_flag = np.zeros((1, self.Nb_agent), dtype=bool)
+        self.episode_step += 1
+        reward = 0
+        # if self.RETURN_IMAGES:
+        #     # new_observation = np.array(self.get_image())
+        # else:
+        for agent_i in self.agents:
+            agent_i.action(action)
+        theta_reference = []
+        error = []
+        new_observation = []
+        for agent_i in self.agents:
+            theta_reference_i = np.arctan2(self.goal.y-agent_i.y, self.goal.x-agent_i.x)
+            error_i = [self.goal.x-agent_i.x, self.goal.y-agent_i.y, theta_reference_i - agent_i.theta]
+            observation_i = [agent_i.x, agent_i.y, agent_i.theta]
+            theta_reference.append(theta_reference_i)
+            new_observation.append(observation_i)
+            error.append(error_i)
+        new_observation.append(self.target_state)
+        new_observation = np.concatenate(new_observation,axis=1)
+        new_observation = new_observation.reshape(1,3,-1)
+        error = np.concatenate(error,axis=1)
+        error = error.reshape(1,3,-1)
+
+        done = False
+        
+        i = 0
+        for agent_i in self.agents:
+            if abs(agent_i.x - self.goal.x)<3e-1 and abs(agent_i.y - self.goal.y)<3e-1:
+                self.reach_goal_flag[0,i] = True
+            i = i+1
+        print(error[0,0:2,:])
+        print(self.last_error[0,0:2,:])
+        # print(error[0,0:1,:]-self.last_error[0,0:1,:])
+        # print(sum(np.abs(error[0,0:1,:]-self.last_error[0,0:1,:])))
+        if sum(sum(np.abs(error[0,0:2,:])-np.abs(self.last_error[0,0:2,:]))) > 0.4:  
+            reward += self.IMPROVE_REWARD
+        if np.count_nonzero(self.reach_goal_flag)>self.reach_goal_count:
+            self.reach_goal_count=np.count_nonzero(self.reach_goal_flag)
+            reward += self.GOAL_REWARD
+        if  self.episode_step >= 200:  #reward == self.FOOD_REWARD or reward == -self.ENEMY_PENALTY or
+            done = True
+        
+        self.last_observation = new_observation[:][:][:]
+        self.last_error = error[:][:][:]
+        
+        return new_observation, reward, done
+
+    # def render(self):
+        # img = self.get_image()
+        # img = img.resize((300, 300))  # resizing so we can see our agent in all its glory.
+        # cv2.imshow("image", np.array(img))  # show it!
+        # cv2.waitKey(1)
+
+class agent:
+    def __init__(self, size,velocity):
+        self.size = size
+        self.velocity = velocity
+        self.x = np.random.uniform(0.05*size, 0.95*size, 1) 
+        self.y = np.random.uniform(0.05*size, 0.95*size, 1) 
+        self.theta = np.random.uniform(-np.pi,np.pi,1)
+        self.mu, self.sigma =  np.pi/4, np.pi/180*5 # mean and standard deviation
+
+    def __str__(self):
+        return f"mi-robot ({self.x}, {self.y},{self.theta})"
+
+    def __sub__(self, other):
+        return (self.x-other.x, self.y-other.y, self.theta-other.theta)
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
+
+    def action(self, choice):
+        if choice == 1:
+            delta_theta = np.random.normal(self.mu, self.sigma)
+            self.theta = self.theta + delta_theta
+            if self.theta > np.pi:
+                self.theta -= 2*np.pi
+            elif self.theta < -np.pi:
+                self.theta += 2*np.pi
+        elif choice == 0:
+            self.theta = self.theta
+        self.move(xx=self.velocity*np.cos(self.theta), yy=self.velocity*np.sin(self.theta))
+
+    def move(self, xx=False, yy=False):
+
+        # If no value for x, move randomly
+        if not xx:
+            print("no x")# self.x += np.random.randint(-1, 2)
+        else:
+            self.x += xx
+
+        # If no value for y, move randomly
+        if not yy:
+            print("no y")# self.y += np.random.randint(-1, 2)
+        else:
+            self.y += yy
+
+        # If we are out of bounds, fix!
+        if self.x < 0:
+            self.x = np.array([0.])
+            #print("xlow")
+        elif self.x > self.size:
+            self.x = np.array([self.size])
+            #print("xhigh")
+        if self.y < 0:
+            self.y = np.array([0.])
+            #print("ylow")
+        elif self.y > self.size:
+            self.y = np.array([self.size])
+            #print("yhigh")
         for i in range(50):
             state = self.env.reset()
             done = False
@@ -371,4 +515,3 @@ class Agent_DQN(Agent):
         current_test_reward = np.mean(rewards)
         print("Current policy reward:",current_test_reward)
         return current_test_reward
-        ##########################
