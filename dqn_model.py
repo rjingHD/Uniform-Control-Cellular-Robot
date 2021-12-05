@@ -13,7 +13,7 @@ class DQN(nn.Module):
         in_channels: number of channel of input.
         """
         super(DQN, self).__init__()
-        self.f1 = nn.Linear(3*10, 128)
+        self.f1 = nn.Linear(width*height, 128)
         self.f2 = nn.Linear(128, 256)
         self.f3 = nn.Linear(256, 2)
 

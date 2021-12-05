@@ -83,33 +83,30 @@ class Environment(object):
 
 class CellEnv:
     grid_SIZE = 10.0
-    Nb_agent = 10
+    Nb_robot = 10
     RETURN_IMAGES = False
     IMPROVE_REWARD = 1
     GOAL_REWARD = 30
-    velocity = 0.2
+    velocity = 0.1
     # ENEMY_PENALTY = 300 
     # FOOD_REWARD = 25
     # OBSERVATION_SPACE_VALUES = (SIZE, SIZE, 3)  # 4
     #ACTION_SPACE_SIZE = 9
     
-    PLAYER_N = 1  # player key in dict
-    GOAL_N = 3   # enemy key in dict
     # the dict! (colors)
     d = {1: (255, 175, 0),
          2: (0, 255, 0),
          3: (0, 0, 255)}
     
     def reset(self):
-        
+        self.reach_goal_flag = np.zeros((1, self.Nb_robot), dtype=bool)
+        self.reach_goal_count = 0
         self.goal = goal(self.grid_SIZE)
         self.robots = []
-        for i in range(self.Nb_agent):
+        for i in range(self.Nb_robot):
             self.robots.append(robot(self.grid_SIZE,self.velocity))
             error = [self.goal.x-self.robots[i].x, self.goal.y-self.robots[i].y]
-            counter = 0
             while  np.linalg.norm(error, ord=2) < 0.1:
-                counter += 1
                 self.robots[i] = robot(self.grid_SIZE,self.velocity)
                 error = [self.goal.x-self.robots[i].x, self.goal.y-self.robots[i].y]
         self.episode_step = 0
@@ -117,53 +114,71 @@ class CellEnv:
         #     #observation = np.array(self.get_image())
         # else:
         observation = []
+        error = []
+        self.target_state = [self.goal.x,self.goal.y,np.array([0.0])]
         for robot_i in self.robots:
-            theta_reference = np.arctan2(self.goal.y-robot_i.y, self.goal.x-robot_i.x)
-            #error_i = [self.goal.x-robot_i.x, self.goal.y-robot_i.y, theta_reference - robot_i.theta]
-            error_i = [robot_i.x, robot_i.y, robot_i.theta]
-            observation.append(error_i) 
+            theta_reference_i = np.arctan2(self.goal.y-robot_i.y, self.goal.x-robot_i.x)
+            error_i = [self.goal.x-robot_i.x, self.goal.y-robot_i.y, theta_reference_i - robot_i.theta]
+            observation_i = [robot_i.x, robot_i.y, robot_i.theta]
+            observation.append(observation_i) 
+            error.append(error_i)
+        observation.append(self.target_state)
         observation = np.concatenate(observation,axis=1)
-        observation = observation.reshape(1,3,self.Nb_agent)
+        observation = observation.reshape(1,3,-1)
+        error = np.concatenate(error,axis=1)
+        error = error.reshape(1,3,-1)
+        # print(type(observation))
+        # print(observation.shape)
         self.last_observation = observation
+        self.last_error = error
         return observation,self.goal
     
     def step(self, action):
+        self.reach_goal_flag = np.zeros((1, self.Nb_robot), dtype=bool)
         self.episode_step += 1
         reward = 0
         # if self.RETURN_IMAGES:
         #     # new_observation = np.array(self.get_image())
         # else:
         for robot_i in self.robots:
-            robot_i.follow_action(np.int16(action))
-            
+            robot_i.follow_action(action)
+        theta_reference = []
+        error = []
         new_observation = []
         for robot_i in self.robots:
-            theta_reference = np.arctan2(self.goal.y-robot_i.y, self.goal.x-robot_i.x)
-            #error_i = [self.goal.x-robot_i.x, self.goal.y-robot_i.y, theta_reference - robot_i.theta]
-            error_i = [robot_i.x, robot_i.y, robot_i.theta]
-            # print(error_i)
-            new_observation.append(error_i)
+            theta_reference_i = np.arctan2(self.goal.y-robot_i.y, self.goal.x-robot_i.x)
+            error_i = [self.goal.x-robot_i.x, self.goal.y-robot_i.y, theta_reference_i - robot_i.theta]
+            observation_i = [robot_i.x, robot_i.y, robot_i.theta]
+            theta_reference.append(theta_reference_i)
+            new_observation.append(observation_i)
+            error.append(error_i)
+        new_observation.append(self.target_state)
         new_observation = np.concatenate(new_observation,axis=1)
-        new_observation = new_observation.reshape(1,3,self.Nb_agent)
+        new_observation = new_observation.reshape(1,3,-1)
+        error = np.concatenate(error,axis=1)
+        error = error.reshape(1,3,-1)
+
         done = False
         
         i = 0
         for robot_i in self.robots:
-            if abs(robot_i.x - self.goal.x)<1e-2 and abs(robot_i.y - self.goal.y)<1e-2:
-                reward += self.GOAL_REWARD  
-            elif sum(new_observation[0,:,i]-self.last_observation[0,:,i]) > 0.2:  
-                reward += self.IMPROVE_REWARD
+            if abs(robot_i.x - self.goal.x)<3e-1 and abs(robot_i.y - self.goal.y)<3e-1:
+                self.reach_goal_flag[0,i] = True
             i = i+1
-        
+        if sum(sum(np.abs(error[0,0:2,:])-np.abs(self.last_error[0,0:2,:]))) > 0.4:  
+            reward += self.IMPROVE_REWARD
+        if np.count_nonzero(self.reach_goal_flag)>self.reach_goal_count:
+            self.reach_goal_count=np.count_nonzero(self.reach_goal_flag)
+            reward += self.GOAL_REWARD
         if  self.episode_step >= 200:  #reward == self.FOOD_REWARD or reward == -self.ENEMY_PENALTY or
             done = True
         self.last_observation = new_observation[:][:][:]
-        
+        self.last_error = error[:][:][:]
         return new_observation, reward, done
 
     # def render(self):
         # img = self.get_image()
-        # img = img.resize((300, 300))  # resizing so we can see our agent in all its glory.
+        # img = img.resize((300, 300))  # resizing so we can see our robot in all its glory.
         # cv2.imshow("image", np.array(img))  # show it!
         # cv2.waitKey(1)
 
