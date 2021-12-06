@@ -113,8 +113,6 @@ class Agent_DQN(Agent):
     #     If no parameters need to be initialized, you can leave it as blank.
     #     """
 
-    
-    
     def make_action(self, observation, test=True):
         """
         Return predicted action of your agent
@@ -206,7 +204,7 @@ class Agent_DQN(Agent):
         # next_q_value = self.target_net(next_state).gather(  # Double DQN
         #     dim = 1, index = self.policy_net(next_state).argmax(dim=1, keepdim=True)).detach()
         # mask = 1 - done
-        # target = (reward + self.gamma * next_q_value * mask).to(self.device)
+        # target = (reward + self.gamma*next_q_value*mask).to(self.device)
         
         curr_q_value = self.policy_net.forward(state).gather(1, action.view(-1,1)).squeeze()
         with torch.no_grad(): 
@@ -252,7 +250,7 @@ class Agent_DQN(Agent):
         start_update_flag = False
         self.episode_count = 0
         update_step = 0
-        current_test_reward = 0 #self.test_policy()
+        current_test_reward = self.test_policy()
         for episode in range(self.max_episodes):
             episode_reward = 0.0
             done = False
@@ -296,7 +294,6 @@ class Agent_DQN(Agent):
                         # END
                         self.optimizer.step()
                     #total_loss+=loss.cpu().detach().numpy()
-                    
                     if(update_step%(4*stepPermin) == 0):   #test every 4min training  
                         plt.savefig("parameters/"+self.timestr+"/experimental_result.png")
                         print("experiment plot saved.")
@@ -323,7 +320,7 @@ class Agent_DQN(Agent):
                         max_y_bar = y_bar
                         torch.save(self.policy_net.state_dict(),self.path)
                         print("network weight saved. Best_reward:",max_y_bar)
-                        if(self.episode_count > 5000):
+                        if(self.episode_count > 500):
                             current_test_reward = self.test_policy()
                             print("current test reward:",current_test_reward)
                 Y_bar.append(y_bar)
@@ -335,181 +332,17 @@ class Agent_DQN(Agent):
                     print("network weight backup saved. Episode:",self.episode_count)
                 if max_y_bar > 10000:
                     break
-        
     def test_policy(self):
         print("Testing current policy...")
-        rewards = []class CellEnv:
-    grid_SIZE = 10.0
-    Nb_agent = 10
-    RETURN_IMAGES = False
-    IMPROVE_REWARD = 1
-    GOAL_REWARD = 30
-    velocity = 0.1
-    # ENEMY_PENALTY = 300 
-    # FOOD_REWARD = 25
-    # OBSERVATION_SPACE_VALUES = (SIZE, SIZE, 3)  # 4
-    #ACTION_SPACE_SIZE = 9
-    
-    # the dict! (colors)
-    d = {1: (255, 175, 0),
-         2: (0, 255, 0),
-         3: (0, 0, 255)}
-    
-    def reset(self):
-        self.reach_goal_flag = np.zeros((1, self.Nb_agent), dtype=bool)
-        self.reach_goal_count = 0
-        self.goal = goal(self.grid_SIZE)
-        self.agents = []
-        for i in range(self.Nb_agent):
-            self.agents.append(agent(self.grid_SIZE,self.velocity))
-            error = [self.goal.x-self.agents[i].x, self.goal.y-self.agents[i].y]
-            while  np.linalg.norm(error, ord=2) < 0.1:
-                self.agents[i] = agent(self.grid_SIZE,self.velocity)
-                error = [self.goal.x-self.agents[i].x, self.goal.y-self.agents[i].y]
-        self.episode_step = 0
-        # if self.RETURN_IMAGES:
-        #     #observation = np.array(self.get_image())
-        # else:
-        observation = []
-        error = []
-        self.target_state = [self.goal.x,self.goal.y,np.array([0.0])]
-        for agent_i in self.agents:
-            theta_reference_i = np.arctan2(self.goal.y-agent_i.y, self.goal.x-agent_i.x)
-            error_i = [self.goal.x-agent_i.x, self.goal.y-agent_i.y, theta_reference_i - agent_i.theta]
-            observation_i = [agent_i.x, agent_i.y, agent_i.theta]
-            observation.append(observation_i) 
-            error.append(error_i)
-        observation.append(self.target_state)
-        print(observation)
-        observation = np.concatenate(observation,axis=1)
-        observation = observation.reshape(1,3,-1)
-        error = np.concatenate(error,axis=1)
-        error = error.reshape(1,3,-1)
-        print(type(observation))
-        print(observation.shape)
-        self.last_observation = observation
-        self.last_error = error
-        return observation,self.goal
-    
-    def step(self, action):
-        self.reach_goal_flag = np.zeros((1, self.Nb_agent), dtype=bool)
-        self.episode_step += 1
-        reward = 0
-        # if self.RETURN_IMAGES:
-        #     # new_observation = np.array(self.get_image())
-        # else:
-        for agent_i in self.agents:
-            agent_i.action(action)
-        theta_reference = []
-        error = []
-        new_observation = []
-        for agent_i in self.agents:
-            theta_reference_i = np.arctan2(self.goal.y-agent_i.y, self.goal.x-agent_i.x)
-            error_i = [self.goal.x-agent_i.x, self.goal.y-agent_i.y, theta_reference_i - agent_i.theta]
-            observation_i = [agent_i.x, agent_i.y, agent_i.theta]
-            theta_reference.append(theta_reference_i)
-            new_observation.append(observation_i)
-            error.append(error_i)
-        new_observation.append(self.target_state)
-        new_observation = np.concatenate(new_observation,axis=1)
-        new_observation = new_observation.reshape(1,3,-1)
-        error = np.concatenate(error,axis=1)
-        error = error.reshape(1,3,-1)
-
-        done = False
-        
-        i = 0
-        for agent_i in self.agents:
-            if abs(agent_i.x - self.goal.x)<3e-1 and abs(agent_i.y - self.goal.y)<3e-1:
-                self.reach_goal_flag[0,i] = True
-            i = i+1
-        print(error[0,0:2,:])
-        print(self.last_error[0,0:2,:])
-        # print(error[0,0:1,:]-self.last_error[0,0:1,:])
-        # print(sum(np.abs(error[0,0:1,:]-self.last_error[0,0:1,:])))
-        if sum(sum(np.abs(error[0,0:2,:])-np.abs(self.last_error[0,0:2,:]))) > 0.4:  
-            reward += self.IMPROVE_REWARD
-        if np.count_nonzero(self.reach_goal_flag)>self.reach_goal_count:
-            self.reach_goal_count=np.count_nonzero(self.reach_goal_flag)
-            reward += self.GOAL_REWARD
-        if  self.episode_step >= 200:  #reward == self.FOOD_REWARD or reward == -self.ENEMY_PENALTY or
-            done = True
-        
-        self.last_observation = new_observation[:][:][:]
-        self.last_error = error[:][:][:]
-        
-        return new_observation, reward, done
-
-    # def render(self):
-        # img = self.get_image()
-        # img = img.resize((300, 300))  # resizing so we can see our agent in all its glory.
-        # cv2.imshow("image", np.array(img))  # show it!
-        # cv2.waitKey(1)
-
-class agent:
-    def __init__(self, size,velocity):
-        self.size = size
-        self.velocity = velocity
-        self.x = np.random.uniform(0.05*size, 0.95*size, 1) 
-        self.y = np.random.uniform(0.05*size, 0.95*size, 1) 
-        self.theta = np.random.uniform(-np.pi,np.pi,1)
-        self.mu, self.sigma =  np.pi/4, np.pi/180*5 # mean and standard deviation
-
-    def __str__(self):
-        return f"mi-robot ({self.x}, {self.y},{self.theta})"
-
-    def __sub__(self, other):
-        return (self.x-other.x, self.y-other.y, self.theta-other.theta)
-
-    def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
-
-    def action(self, choice):
-        if choice == 1:
-            delta_theta = np.random.normal(self.mu, self.sigma)
-            self.theta = self.theta + delta_theta
-            if self.theta > np.pi:
-                self.theta -= 2*np.pi
-            elif self.theta < -np.pi:
-                self.theta += 2*np.pi
-        elif choice == 0:
-            self.theta = self.theta
-        self.move(xx=self.velocity*np.cos(self.theta), yy=self.velocity*np.sin(self.theta))
-
-    def move(self, xx=False, yy=False):
-
-        # If no value for x, move randomly
-        if not xx:
-            print("no x")# self.x += np.random.randint(-1, 2)
-        else:
-            self.x += xx
-
-        # If no value for y, move randomly
-        if not yy:
-            print("no y")# self.y += np.random.randint(-1, 2)
-        else:
-            self.y += yy
-
-        # If we are out of bounds, fix!
-        if self.x < 0:
-            self.x = np.array([0.])
-            #print("xlow")
-        elif self.x > self.size:
-            self.x = np.array([self.size])
-            #print("xhigh")
-        if self.y < 0:
-            self.y = np.array([0.])
-            #print("ylow")
-        elif self.y > self.size:
-            self.y = np.array([self.size])
-            #print("yhigh")
-        for i in range(50):
-            state = self.env.reset()
+        rewards = []
+        for i in range(30):
+            #state = self.env.reset()
+            observation,target_position = self.env.reset()
             done = False
             episode_reward = 0.0
             while(not done):
-                action = self.make_action(state, test=True)
-                state, reward, done, info = self.env.step(action)
+                action = self.make_action(observation, test=True)
+                observation, reward, done, _ = self.env.step(action)
                 episode_reward += reward
             rewards.append(episode_reward)
         current_test_reward = np.mean(rewards)

@@ -31,7 +31,6 @@ def run(args):
         agent = Agent_DQN(env, args)
         test(agent, env, total_episodes=10)
 
-
 if __name__ == '__main__':
     args = parse()
     run(args)
