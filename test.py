@@ -41,7 +41,7 @@ def test(agent, env, total_episodes=30):
         all_step_action_buffer = np.array(all_step_action_buffer)
         rewards_each_episode.append(episode_reward)
         rewards_each_step.append(all_step_reward_buffer)
-        if i == 11:
+        if i == 9:
             movement_animation(i,all_state_buffer,all_step_reward_buffer,all_step_action_buffer,target,observation_method)
     print('Run %d episodes'%(total_episodes))
     print("Reward from each episode:",rewards_each_episode)
