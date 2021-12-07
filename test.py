@@ -22,13 +22,12 @@ def test(agent, env, total_episodes=30):
     rewards_each_step = []
     env.seed(seed)
     for i in range(total_episodes):
-        state,target = env.reset()
+        state,target,observation_method = env.reset()
         all_state_buffer = [state[:][:][:]];
         all_step_reward_buffer = [];
         all_step_action_buffer = [];
         done = False
         episode_reward = 0.0
-
         #playing one game
         while(not done):
             action = agent.make_action(state, test=True)
@@ -42,8 +41,8 @@ def test(agent, env, total_episodes=30):
         all_step_action_buffer = np.array(all_step_action_buffer)
         rewards_each_episode.append(episode_reward)
         rewards_each_step.append(all_step_reward_buffer)
-        if i == 1:
-            movement_animation(i,all_state_buffer,all_step_reward_buffer,all_step_action_buffer,target)
+        if i == 11:
+            movement_animation(i,all_state_buffer,all_step_reward_buffer,all_step_action_buffer,target,observation_method)
     print('Run %d episodes'%(total_episodes))
     print("Reward from each episode:",rewards_each_episode)
     print('Mean:', np.mean(rewards_each_episode))
@@ -55,7 +54,7 @@ def run(args):
         agent = Agent_DQN(env, args)
         test(agent, env, total_episodes=10)
 
-def movement_animation(episode_i,all_state_buffer,all_step_reward_buffer,all_step_action_buffer,goal):
+def movement_animation(episode_i,all_state_buffer,all_step_reward_buffer,all_step_action_buffer,goal,observation_method):
     grid_SIZE = 10
     fig, ax = plt.subplots()
     ax.plot([goal.x],[goal.y],'go')
@@ -65,7 +64,10 @@ def movement_animation(episode_i,all_state_buffer,all_step_reward_buffer,all_ste
         if step_i > 0:
             del fig.texts[0:len(fig.texts)]
         ax.plot([goal.x],[goal.y],'go')
-        l.set_data(all_state_buffer[step_i-1][0,0,:], all_state_buffer[step_i-1][0,1,:])
+        if observation_method == 0:
+            l.set_data(all_state_buffer[step_i-1][0,0,:], all_state_buffer[step_i-1][0,1,:])
+        elif observation_method == 1:
+            l.set_data(goal.x-all_state_buffer[step_i-1][0,0,:], goal.y-all_state_buffer[step_i-1][0,1,:])
         fig.text(0.1, 0.9, 'Step Reward:'+str(all_step_reward_buffer[step_i-1]), size=10, color='purple')
         fig.text(0.5, 0.9, 'action:'+str(all_step_action_buffer[step_i-1]), size=10, color='purple')
     ani = animation.FuncAnimation(fig, animate, frames=len(all_state_buffer))

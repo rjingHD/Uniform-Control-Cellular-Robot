@@ -4,9 +4,7 @@
 DO NOT revise this file
 
 """
-# import gym
 import numpy as np
-# from atari_wrapper import make_wrap_atari
 
 class Environment(object):
     def __init__(self, env_name, args, test=False):
@@ -37,9 +35,9 @@ class Environment(object):
             observation: np.array
                 current RGB screen of game, shape: (210, 160, 3)
         '''
-        observation,self.goal = self.env.reset()
+        observation,self.goal,self.observation_method = self.env.reset()
 
-        return np.array(observation),self.goal
+        return np.array(observation),self.goal,self.observation_method
 
 
     def step(self,action):
@@ -82,6 +80,7 @@ class Environment(object):
     #     return self.action_space.sample()
 
 class CellEnv:
+    observation_method = 1 # 0 for state value, 1 for error value
     grid_SIZE = 10.0
     Nb_robot = 10
     RETURN_IMAGES = False
@@ -119,7 +118,10 @@ class CellEnv:
         for robot_i in self.robots:
             theta_reference_i = np.arctan2(self.goal.y-robot_i.y, self.goal.x-robot_i.x)
             error_i = [self.goal.x-robot_i.x, self.goal.y-robot_i.y, theta_reference_i - robot_i.theta]
-            observation_i = [robot_i.x, robot_i.y, robot_i.theta]
+            if self.observation_method == 0:
+                observation_i = [robot_i.x, robot_i.y, robot_i.theta]
+            elif self.observation_method == 1:
+                observation_i = error_i
             observation.append(observation_i) 
             error.append(error_i)
         observation.append(self.target_state)
@@ -127,11 +129,13 @@ class CellEnv:
         observation = observation.reshape(1,3,-1)
         error = np.concatenate(error,axis=1)
         error = error.reshape(1,3,-1)
+        self.error_sum_min = sum(sum(abs(error[0,0:2,:])))
+        self.error_sum_min_step = 0
         # print(type(observation))
         # print(observation.shape)
         self.last_observation = observation
         self.last_error = error
-        return observation,self.goal
+        return observation,self.goal,self.observation_method
     
     def step(self, action):
         self.reach_goal_flag = np.zeros((1, self.Nb_robot), dtype=bool)
@@ -148,7 +152,10 @@ class CellEnv:
         for robot_i in self.robots:
             theta_reference_i = np.arctan2(self.goal.y-robot_i.y, self.goal.x-robot_i.x)
             error_i = [self.goal.x-robot_i.x, self.goal.y-robot_i.y, theta_reference_i - robot_i.theta]
-            observation_i = [robot_i.x, robot_i.y, robot_i.theta]
+            if self.observation_method == 0:
+                observation_i = [robot_i.x, robot_i.y, robot_i.theta]
+            elif self.observation_method == 1:
+                observation_i = error_i
             theta_reference.append(theta_reference_i)
             new_observation.append(observation_i)
             error.append(error_i)
@@ -159,18 +166,23 @@ class CellEnv:
         error = error.reshape(1,3,-1)
 
         done = False
-        
         i = 0
         for robot_i in self.robots:
             if abs(robot_i.x - self.goal.x)<3e-1 and abs(robot_i.y - self.goal.y)<3e-1:
                 self.reach_goal_flag[0,i] = True
             i = i+1
-        if sum(sum(np.abs(error[0,0:2,:])-np.abs(self.last_error[0,0:2,:]))) > 0.4:  
+        #if sum(sum(np.abs(error[0,0:2,:])-np.abs(self.last_error[0,0:2,:]))) > 0.4:  
+        if sum(sum(error[0,0:2,:]-self.last_error[0,0:2,:])) > 0.5:  
             reward += self.IMPROVE_REWARD
         if np.count_nonzero(self.reach_goal_flag)>self.reach_goal_count:
             self.reach_goal_count=np.count_nonzero(self.reach_goal_flag)
             reward += self.GOAL_REWARD
-        if  self.episode_step >= 200:  #reward == self.FOOD_REWARD or reward == -self.ENEMY_PENALTY or
+        if  self.episode_step >= 200: 
+            done = True
+        if self.error_sum_min > sum(sum(abs(error[0,0:2,:]))):
+            self.error_sum_min = sum(sum(abs(error[0,0:2,:])))
+            self.error_sum_min_step = self.episode_step
+        if self.episode_step - self.error_sum_min_step > 20:
             done = True
         self.last_observation = new_observation[:][:][:]
         self.last_error = error[:][:][:]
@@ -219,29 +231,27 @@ class robot:
         self.move(xx=self.velocity*np.cos(self.theta), yy=self.velocity*np.sin(self.theta))
 
     def move(self, xx=False, yy=False):
-
         # If no value for x, move randomly
         if not xx:
             print("no x")# self.x += np.random.randint(-1, 2)
         else:
             self.x += xx
-
         # If no value for y, move randomly
         if not yy:
             print("no y")# self.y += np.random.randint(-1, 2)
         else:
             self.y += yy
-
         # If we are out of bounds, fix!
         if self.x < 0:
             self.x = np.array([0.])
-            #print("xlow")
         elif self.x > self.size:
             self.x = np.array([self.size])
-            #print("xhigh")
         if self.y < 0:
             self.y = np.array([0.])
-            #print("ylow")
         elif self.y > self.size:
             self.y = np.array([self.size])
-            #print("yhigh")
+class goal:
+    def __init__(self, size):
+        self.size = size
+        self.x = np.random.uniform(0.1*size, 0.9*size, 1) # dont be too close to the boundary
+        self.y = np.random.uniform(0.1*size, 0.9*size, 1) ##np.random.random(0.1*size, 0.9*size)
