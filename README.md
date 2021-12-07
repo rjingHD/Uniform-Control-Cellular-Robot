@@ -4,7 +4,7 @@ The code is tested with Python3.9.7.
 
 Required packages: numpy matplotlib torch
 
-Current pytorch version: 1.10.0
+Pytorch Version: 1.10.0
 
 Nvidia Driver Version: 470.86       
 
