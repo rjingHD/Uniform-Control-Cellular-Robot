@@ -237,9 +237,9 @@ class Agent_DQN(Agent):
         stepPermin = 50000
         fig=plt.figure()
         ax=fig.add_subplot(1,1,1)
-        ax.set_xlabel('Number of training steps')
+        ax.set_xlabel('Number of episodes')
         ax.set_ylabel('Average reward over last 30 episodes')
-        ax.set_title('Reward trajectory')
+        ax.set_title('Episode Reward')
         line = ax.plot([0,0], [100000,200], '-b')[0]
         plt.grid(True)
         plt.ion()  #interactive mode on
@@ -254,7 +254,7 @@ class Agent_DQN(Agent):
         for episode in range(self.max_episodes):
             episode_reward = 0.0
             done = False
-            observation,target_position = self.env.reset()
+            observation,target_position,observation_method = self.env.reset()
             while not done:
                 if start_update_flag:
                     action = self.make_action(observation,test=False)
@@ -337,7 +337,7 @@ class Agent_DQN(Agent):
         rewards = []
         for i in range(30):
             #state = self.env.reset()
-            observation,target_position = self.env.reset()
+            observation,target_position,observation_method = self.env.reset()
             done = False
             episode_reward = 0.0
             while(not done):
