@@ -2,8 +2,11 @@
 ## Required packages and environments
 The code is tested with Python3.9.7.
 Required packages: numpy matplotlib torch
+
 Current pytorch version: 1.10.0
+
 Nvidia Driver Version: 470.86       
+
 CUDA Version: 11.4   
 ## To run the code:
 Open the terminal from the project folder:
